@@ -1,0 +1,515 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to Vargi bots #0865’s documentation! &#8212; Vargi bots #0865 1.0 documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="#">Vargi bots #0865 1.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Welcome to Vargi bots #0865’s documentation!</a></li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="welcome-to-vargi-bots-0865-s-documentation">
+<h1>Welcome to Vargi bots #0865’s documentation!<a class="headerlink" href="#welcome-to-vargi-bots-0865-s-documentation" title="Permalink to this headline">¶</a></h1>
+<a class="reference internal image-reference" href="_images/index.png"><img alt="_images/index.png" src="_images/index.png" style="width: 400px; height: 200px;" /></a>
+</div>
+<div class="section" id="introduction">
+<h1><strong>Introduction:</strong><a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
+<p><strong>Summary:</strong> In this task of Vargi bots, we collected the order through mqqt and placed the pakages on the conveyer belt according to the priority of Medical, Food, Clothes in increasing order.
+After the packages were placed on the conveyer belt, the corresponding google spreadsheet would be updated and an email of <em>dispatched package</em> would be sent.
+And the other UR5_Arm would sort the packages according to their color and place them in their respective bin and further update the spreadsheet and send an email of <em>shipment of package</em>.</p>
+<p><strong>Video</strong>:</p>
+<p><a class="reference external" href="https://www.youtube.com/watch?v=Ih47al4Peu0">Video link for the task</a></p>
+</div>
+<div class="section" id="implementation">
+<h1><strong>Implementation:</strong><a class="headerlink" href="#implementation" title="Permalink to this headline">¶</a></h1>
+<p>The task5 of vargi bots includes three main sections, that we divided into to work on simaltaneously and has an distributed workflow, they are as following:</p>
+<ul>
+<li><p><em>Getting the orders from MQQT :</em> In this section, we use node_online_order_placer.py file from the    vb_sim package given by the eyantra team. This node publishes the message file to the topic
+<em>/eyrc/vb/aBCaRvEc/orders</em>. The corresponding message is subscribed by the nodes in the task5 and
+thus getting the incoming orders from the MQTT. The subsequent order_id and other parameters          related to the order are also pushed on the google spreadsheet.</p></li>
+<li><p><em>Priority based pick and place of packages and upadating spreadsheet :</em>  In this section, we          have implemented priority based picking and placing of objects through the help of an list, which       is appended whenever an order is recieved on the IncomingOrders spreadsheet, this list is then          sorted lexicographically in decreasing order to have <em>Medicine</em> at the front of the list, whenever      it is recieved, <em>Food</em> in the next order and <em>Clothes</em> are served last, according to given              priority.</p>
+<p>Then  the color is decoded using camera and is stored in a global dictionary, which contains the      name of the package as key and its color as value. By the use of this dictionary we find the            package no. of required package and get the joint angles for picking up the respective                  packages. An extensive error handling capability has also been included in case if any set joint        angles failed, which involves returning to the home pose of the arm and then trying to reach the        position from the home pose.</p>
+<p>After the package is picked up the next move was to move the package to a position where it can
+drop the package above the conveyer belt. The joint angles have been manually noted from the rviz     and the have been passed to set joint angles value. As soon the package is detached from the ur5_1      arm, we update the google spreadsheet for DispatchedOrders and send an email to the client using an     automatic python script and google script editor.</p>
+</li>
+<li><p><em>Sorting of the packages and updating the spreadsheet:</em> In this section we sort the                   incoming packages on the conveyer belt by subscribing to the message sent by the logical camera 2       publisher and based on the color input we get we go to predefined poses, again by using set joint       angles function and then detach the package when the arm is positioned above the bin of the color       of the package. When the package is detached the corresponding <em>spreadsheet</em> is updated and email       is sent to the customer alerting about the shipment of their package. This is done using the google     script editor and python script, which automates the entire process.</p></li>
+</ul>
+<p><strong>RQTT Graph</strong>:</p>
+<a class="reference internal image-reference" href="_images/rosgraph.png"><img alt="_images/rosgraph.png" src="_images/rosgraph.png" style="width: 800px; height: 400px;" /></a>
+<hr class="docutils" />
+<p><strong>API Documentation:</strong></p>
+<hr class="docutils" />
+<p><strong>API documenation for pkg_task5</strong></p>
+<dl class="simple">
+<dt><strong>class pkg_sort:</strong></dt><dd><p>“””
+Class to pick the packages from the shelf and place on the conveyer belt
+“””</p>
+</dd>
+</dl>
+<ul>
+<li><dl class="simple">
+<dt>def __init__(self):</dt><dd><p>“””
+Initialization of the class Object
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def callback(self,data):</dt><dd><p>“””
+Callback function called by the rospy subscriber to get the color of the box
+by using cv_bridge to convert ros_image to OpenCv image</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>integer matrix</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>contains the matrix of the image</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def pkg_color(self,arg_img):</dt><dd><p>“””
+Returns the package color based on the arg_img</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>integer matrix</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>decodes the image matrix to get the color of the box</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def vacuum_griper(self,state):</dt><dd><p>“””
+Activates the Vaccum Gripper</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>string</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>the state of the vaccum gripper i.e.. activated or deactivated</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def pkg_pose(self , joint_angles1 , joint_angles2):</dt><dd><p>“””
+fethces the package from the shelf based on the input joint angles</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>list for joint_angles1</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>contains the joint angles in the form of the list</p>
+</dd>
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>list for joint angles2</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>contains the joint angles in the form of the list</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def pkg_con_pose(self,con_joint_angles):</dt><dd><p>“””
+Function to make the ur5_1 above the conveyer belt to drop the package</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name(con_joint_angles)</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+<dt class="field-even">param name(con_joint_angles)</dt>
+<dd class="field-even"><p>Contains the joint angles for the arm to go above the conveyer           belt</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def set_joint_angles(self, arg_list_joint_angles):</dt><dd><p>“””
+Function to set the joint angles of the arm to the values given
+as arguments</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>the numerical values for the joint angles to be set</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def go_to_predefined_pose(self, arg_pose_name):</dt><dd><p>“””
+Function to move the arm to one of the predifined poses</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>string</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>position name to which the arm must move to</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>def inventory_push():</dt><dd><p>“””
+function to push the data into the inventory sheet
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>def get_time_str():</dt><dd><p>“””
+function to get the timestamp when the object is picked
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>def dispatched():</dt><dd><p>“””
+function to update the dispatched google sheet when the package is kept on the conveyer belt
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def start(my_msg):</dt><dd><p>“””
+function to start the simulation and updatation of the sheet when the order is recieved</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>contains the various parameters regarding the order</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def sheet(res1):</dt><dd><p>“””
+function to update the IncomingOrders sheets based on the orders recieved from mqqt</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>contains the item name and order id for the order recieved</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>def priority():</dt><dd><p>“””
+function to server query of high priority packages first medium priority second
+and low priority last when they orders are in a queue to be served
+“””</p>
+</dd>
+</dl>
+</li>
+</ul>
+<dl>
+<dt><strong>class sort:</strong></dt><dd><p>“””
+This class will sort the packages according to their colour</p>
+<p>“””</p>
+</dd>
+</dl>
+<ul>
+<li><dl>
+<dt>def __init__(self):</dt><dd><p>“””
+creates the variables associated with the class</p>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def __del__(self):</dt><dd><p>“””
+Destructor
+To be called at the end of the instance</p>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def go_to_predefined_pose(self, arg_pose_name):</dt><dd><p>“””
+Function to move the arm to one of the predifined poses</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>string</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>position name to which the arm must move to</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def set_joint_angles(self, arg_list_joint_angles):</dt><dd><p>“””
+Function to set the joint angles of the arm to the values given
+as arguments</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>the numerical values for the joint angles to be set</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def callback(self,msg):</dt><dd><p>“””
+function which is called whenever a mesaage is recieved</p>
+<p>:type name : string
+:param name: message containing the positons of the box under the logical camera</p>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>def get_time_str(self):</dt><dd><p>“””
+Get the timestamp of the time of starting
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def belt_stop(self):</dt><dd><p>“””
+Sort the packages based on the color detected by the logical_camera_2</p>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def pow_belt(self,power):</dt><dd><p>“””
+This function stops the conveyorBelt</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>specifies the operating power of the conveyer belt from range 11 to 100</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def vacuum_griper(self,state):</dt><dd><p>“””
+Activates the Vaccum Gripper</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>string</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>the state of the vaccum gripper i.e.. activated or deactivated</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def func_callback_topic_my_topic(self,myMsg):</dt><dd><p>“””
+Callback function for the subscriber ur5_2</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>contains the list of parameters to detect the package with the input coming from           the logical_camera_2</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>def shipped(self):</dt><dd><p>“””
+Function to send the shipped goods to the Google sheets
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def start(my_msg):</dt><dd><p>“””
+Function to get the receive orders from google sheets through message file</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name</dt>
+<dd class="field-odd"><p>string</p>
+</dd>
+<dt class="field-even">param name</dt>
+<dd class="field-even"><p>contains the columns of the google sheet of the order recieved</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+</ul>
+<p><strong>API documentation for pkg_ros_iot_bridge</strong></p>
+<dl class="simple">
+<dt><strong>class IotRosBridgeActionServer:</strong></dt><dd><p>“””
+Class which acts as bridge between the IoT and ROS
+“””</p>
+</dd>
+</dl>
+<ul>
+<li><dl class="simple">
+<dt>def __init__(self):</dt><dd><p>“””
+Initialization of the Action server
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def mqtt_sub_callback(self, client, userdata, message):</dt><dd><p>“””
+Callback function for subscriber to the mqqt</p>
+<dl class="field-list simple">
+<dt class="field-odd">type name(message)</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+<dt class="field-even">param name(mesaage)</dt>
+<dd class="field-even"><p>It contains the information about the request sent</p>
+</dd>
+</dl>
+<p>to the mqqt and this message is broadcasted to the subscribers
+“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def on_goal(self, goal_handle):</dt><dd><p>“””
+Function called when the Action server recieves a goal</p>
+<dl class="field-list simple">
+<dt class="field-odd">type(goal_handle)</dt>
+<dd class="field-odd"><p>Encapsulates a state machine for a given goal that
+the user can trigger transisions on. All ROS interfaces for the goal
+are managed by the ActionServer to lessen the burden on the user</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def process_goal(self, goal_handle):</dt><dd><p>“””
+A thread to process the goal recieved by the action server</p>
+<dl class="field-list simple">
+<dt class="field-odd">type(goal_handle)</dt>
+<dd class="field-odd"><p>Encapsulates a state machine for a given goal that
+the user can trigger transisions on. All ROS interfaces for the goal
+are managed by the ActionServer to lessen the burden on the user</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+<li><dl>
+<dt>def on_cancel(self, goal_handle):</dt><dd><p>“””
+Function to cancel the execution of the current goal when Cancel is
+recieved by the Action server</p>
+<dl class="field-list simple">
+<dt class="field-odd">type(goal_handle)</dt>
+<dd class="field-odd"><p>Encapsulates a state machine for a given goal that
+the user can trigger transisions on. All ROS interfaces for the goal
+are managed by the ActionServer to lessen the burden on the user</p>
+</dd>
+</dl>
+<p>“””</p>
+</dd>
+</dl>
+</li>
+</ul>
+<div class="toctree-wrapper compound">
+</div>
+</div>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="#">Vargi bots #0865 1.0 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">Welcome to Vargi bots #0865’s documentation!</a></li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2021, Abhishek Avinash Basavasagar Chinmay.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 3.2.1.
+    </div>
+  </body>
+</html>
